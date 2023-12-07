@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from category.models import Category
+from comment.serializers import CommentSerializer
 from post.models import Post, PostImage
 
 
@@ -18,6 +19,17 @@ class PostListSerializer(serializers.ModelSerializer):
         model = Post
         fields = ('id', 'title', 'owner', 'owner_username',
                   'category', 'category_name', 'preview')
+
+    def to_representation(self, instance):
+        repr = super().to_representation(instance)
+        comments = instance.comments.all()
+        repr['comments_count'] = comments.count()
+        repr['likes_count'] = instance.likes.count()
+        user = self.context['request'].user
+        if user.is_authenticated:
+            repr['is_liked'] = user.likes.filter(post=instance).exists()
+            repr['is_favorite'] = user.favorites.filter(post=instance).exists()
+        return repr
 
 
 class PostCreateUpdateSerializer(serializers.ModelSerializer):
@@ -43,8 +55,20 @@ class PostDetailSerializer(serializers.ModelSerializer):
     owner_username = serializers.ReadOnlyField(source='owner.username')
     category_name = serializers.ReadOnlyField(source='category.name')
     images = PostImageSerializer(many=True)
+    # comments = CommentSerializer(many=True)  # 1 способ - related name
 
     class Meta:
         model = Post
         fields = '__all__'
 
+    def to_representation(self, instance):
+        repr = super().to_representation(instance)
+        comments = instance.comments.all()
+        repr['comments_count'] = comments.count()
+        repr['comments'] = CommentSerializer(comments, many=True).data # 2 способ
+        repr['likes_count'] = instance.likes.count()
+        user = self.context['request'].user
+        if user.is_authenticated:
+            repr['is_liked'] = user.likes.filter(post=instance).exists()
+            repr['is_favorite'] = user.favorites.filter(post=instance).exists()
+        return repr
